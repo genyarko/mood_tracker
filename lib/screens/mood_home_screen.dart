@@ -53,7 +53,7 @@ class _MoodHomeScreenState extends State<MoodHomeScreen> {
         children: [
           _LoggerCard(onMoodSelected: _logMood),
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
             child: Text(
               'Recent entries',
               style: Theme.of(context).textTheme.titleMedium,
@@ -70,11 +70,14 @@ class _MoodHomeScreenState extends State<MoodHomeScreen> {
     if (_entries.isEmpty) {
       return const Center(child: Text('No moods logged yet.'));
     }
-    return ListView.separated(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
+    return ListView.builder(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
       itemCount: _entries.length,
-      separatorBuilder: (_, _) => const Divider(height: 1),
-      itemBuilder: (context, i) => _EntryTile(entry: _entries[i]),
+      itemBuilder: (context, i) => _TimelineCard(
+        entry: _entries[i],
+        isFirst: i == 0,
+        isLast: i == _entries.length - 1,
+      ),
     );
   }
 }
@@ -138,39 +141,113 @@ class _MoodButton extends StatelessWidget {
   }
 }
 
-class _EntryTile extends StatelessWidget {
+class _TimelineCard extends StatelessWidget {
   final MoodEntry entry;
+  final bool isFirst;
+  final bool isLast;
 
-  const _EntryTile({required this.entry});
+  const _TimelineCard({
+    required this.entry,
+    required this.isFirst,
+    required this.isLast,
+  });
 
-  String _timeAgo(DateTime dt) {
-    final diff = DateTime.now().difference(dt);
+  String _formatTimestamp(DateTime dt) {
+    final now = DateTime.now();
+    final diff = now.difference(dt);
     if (diff.inMinutes < 1) return 'Just now';
     if (diff.inHours < 1) return '${diff.inMinutes}m ago';
-    if (diff.inDays < 1) return '${diff.inHours}h ago';
-    return '${diff.inDays}d ago';
+
+    final today = DateTime(now.year, now.month, now.day);
+    final entryDay = DateTime(dt.year, dt.month, dt.day);
+    final diffDays = today.difference(entryDay).inDays;
+
+    final h = dt.hour % 12 == 0 ? 12 : dt.hour % 12;
+    final m = dt.minute.toString().padLeft(2, '0');
+    final period = dt.hour < 12 ? 'AM' : 'PM';
+    final timeStr = '$h:$m $period';
+
+    if (diffDays == 0) return 'Today · $timeStr';
+    if (diffDays == 1) return 'Yesterday · $timeStr';
+    const weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+                    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return '${weekdays[dt.weekday - 1]}, ${months[dt.month - 1]} ${dt.day} · $timeStr';
   }
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
+    final lineColor = Theme.of(context).dividerColor;
+
+    return IntrinsicHeight(
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          CustomPaint(
-            size: const Size(36, 36),
-            painter: MoodFacePainter(entry.mood),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              entry.mood.label,
-              style: Theme.of(context).textTheme.bodyMedium,
+          // Timeline spine
+          SizedBox(
+            width: 40,
+            child: Column(
+              children: [
+                Container(
+                  width: 2,
+                  height: 25,
+                  color: isFirst ? Colors.transparent : lineColor,
+                ),
+                Container(
+                  width: 14,
+                  height: 14,
+                  decoration: BoxDecoration(
+                    color: entry.mood.color,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+                Expanded(
+                  child: Center(
+                    child: Container(
+                      width: 2,
+                      color: isLast ? Colors.transparent : lineColor,
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
-          Text(
-            _timeAgo(entry.timestamp),
-            style: Theme.of(context).textTheme.bodySmall,
+          // Card
+          Expanded(
+            child: Card(
+              margin: EdgeInsets.only(bottom: isLast ? 0 : 8),
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Row(
+                  children: [
+                    CustomPaint(
+                      size: const Size(40, 40),
+                      painter: MoodFacePainter(entry.mood),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            entry.mood.label,
+                            style: Theme.of(context).textTheme.titleSmall,
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            _formatTimestamp(entry.timestamp),
+                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: Theme.of(context).colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
           ),
         ],
       ),
