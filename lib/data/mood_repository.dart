@@ -9,21 +9,29 @@ class MoodRepository {
 
   Future<List<MoodEntry>> loadEntries() async {
     final prefs = await SharedPreferences.getInstance();
-    final raw = prefs.getString(_key);
-    if (raw == null) return [];
-    final list = jsonDecode(raw) as List<dynamic>;
-    return list
-        .map((e) => MoodEntry.fromJson(e as Map<String, dynamic>))
-        .toList();
+    return _decode(prefs.getString(_key));
   }
 
   Future<void> addEntry(MoodEntry entry) async {
-    final entries = await loadEntries();
-    entries.add(entry);
     final prefs = await SharedPreferences.getInstance();
+    final entries = _decode(prefs.getString(_key))..add(entry);
     await prefs.setString(
       _key,
       jsonEncode(entries.map((e) => e.toJson()).toList()),
     );
+  }
+
+  List<MoodEntry> _decode(String? raw) {
+    if (raw == null) return [];
+    final list = jsonDecode(raw) as List<dynamic>;
+    final entries = <MoodEntry>[];
+    for (final item in list) {
+      try {
+        entries.add(MoodEntry.fromJson(item as Map<String, dynamic>));
+      } catch (_) {
+        // Skip corrupted/foreign entry rather than failing the whole load.
+      }
+    }
+    return entries;
   }
 }
