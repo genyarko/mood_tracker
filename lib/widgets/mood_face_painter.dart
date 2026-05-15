@@ -3,8 +3,10 @@ import '../models/mood_kind.dart';
 
 class MoodFacePainter extends CustomPainter {
   final MoodKind mood;
+  // 0..1: exaggerates the mouth curve at peak of tap animation
+  final double animT;
 
-  const MoodFacePainter(this.mood);
+  const MoodFacePainter(this.mood, {this.animT = 0.0});
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -27,13 +29,14 @@ class MoodFacePainter extends CustomPainter {
     canvas.drawCircle(Offset(cx + r * 0.28, cy - r * 0.22), r * 0.1, whiteFill);
 
     // Mouth: positive curveOffset = smile, negative = frown
-    final curveOffset = switch (mood) {
+    final baseCurve = switch (mood) {
       MoodKind.veryHappy => r * 0.28,
       MoodKind.happy => r * 0.16,
       MoodKind.neutral => 0.0,
       MoodKind.sad => -r * 0.16,
       MoodKind.verySad => -r * 0.28,
     };
+    final curveOffset = baseCurve * (1.0 + 0.6 * animT);
 
     final mouthY = cy + r * 0.22;
     final halfW = r * 0.32;
@@ -52,5 +55,6 @@ class MoodFacePainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(MoodFacePainter oldDelegate) => oldDelegate.mood != mood;
+  bool shouldRepaint(MoodFacePainter oldDelegate) =>
+      oldDelegate.mood != mood || oldDelegate.animT != animT;
 }

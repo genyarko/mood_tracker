@@ -74,6 +74,7 @@ class _MoodHomeScreenState extends State<MoodHomeScreen> {
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
       itemCount: _entries.length,
       itemBuilder: (context, i) => _TimelineCard(
+        key: ValueKey(_entries[i].id),
         entry: _entries[i],
         isFirst: i == 0,
         isLast: i == _entries.length - 1,
@@ -141,16 +142,56 @@ class _MoodButton extends StatelessWidget {
   }
 }
 
-class _TimelineCard extends StatelessWidget {
+class _TimelineCard extends StatefulWidget {
   final MoodEntry entry;
   final bool isFirst;
   final bool isLast;
 
   const _TimelineCard({
+    super.key,
     required this.entry,
     required this.isFirst,
     required this.isLast,
   });
+
+  @override
+  State<_TimelineCard> createState() => _TimelineCardState();
+}
+
+class _TimelineCardState extends State<_TimelineCard>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  late final Animation<double> _scaleAnim;
+  late final Animation<double> _exprAnim;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 650),
+    );
+    // Scale: 1.0 → 1.30 (pop) → 1.0 (elastic settle)
+    _scaleAnim = TweenSequence<double>([
+      TweenSequenceItem(tween: Tween(begin: 1.0, end: 1.30), weight: 25),
+      TweenSequenceItem(
+        tween: Tween(begin: 1.30, end: 1.0)
+            .chain(CurveTween(curve: Curves.elasticOut)),
+        weight: 75,
+      ),
+    ]).animate(_controller);
+    // Expression exaggeration: 0 → 1 (peak) → 0
+    _exprAnim = TweenSequence<double>([
+      TweenSequenceItem(tween: Tween(begin: 0.0, end: 1.0), weight: 25),
+      TweenSequenceItem(tween: Tween(begin: 1.0, end: 0.0), weight: 75),
+    ]).animate(_controller);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
 
   String _formatTimestamp(DateTime dt) {
     final now = DateTime.now();
@@ -191,13 +232,13 @@ class _TimelineCard extends StatelessWidget {
                 Container(
                   width: 2,
                   height: 25,
-                  color: isFirst ? Colors.transparent : lineColor,
+                  color: widget.isFirst ? Colors.transparent : lineColor,
                 ),
                 Container(
                   width: 14,
                   height: 14,
                   decoration: BoxDecoration(
-                    color: entry.mood.color,
+                    color: widget.entry.mood.color,
                     shape: BoxShape.circle,
                   ),
                 ),
@@ -205,7 +246,7 @@ class _TimelineCard extends StatelessWidget {
                   child: Center(
                     child: Container(
                       width: 2,
-                      color: isLast ? Colors.transparent : lineColor,
+                      color: widget.isLast ? Colors.transparent : lineColor,
                     ),
                   ),
                 ),
@@ -215,28 +256,26 @@ class _TimelineCard extends StatelessWidget {
           // Card
           Expanded(
             child: Card(
-              margin: EdgeInsets.only(bottom: isLast ? 0 : 8),
-              child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: Row(
-                  children: [
-                    CustomPaint(
-                      size: const Size(40, 40),
-                      painter: MoodFacePainter(entry.mood),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
+              margin: EdgeInsets.only(bottom: widget.isLast ? 0 : 8),
+              clipBehavior: Clip.antiAlias,
+              child: InkWell(
+                onTap: () => _controller.forward(from: 0),
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: AnimatedBuilder(
+                    animation: _controller,
+                    child: Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Text(
-                            entry.mood.label,
+                            widget.entry.mood.label,
                             style: Theme.of(context).textTheme.titleSmall,
                           ),
                           const SizedBox(height: 2),
                           Text(
-                            _formatTimestamp(entry.timestamp),
+                            _formatTimestamp(widget.entry.timestamp),
                             style: Theme.of(context).textTheme.bodySmall?.copyWith(
                               color: Theme.of(context).colorScheme.onSurfaceVariant,
                             ),
@@ -244,7 +283,23 @@ class _TimelineCard extends StatelessWidget {
                         ],
                       ),
                     ),
-                  ],
+                    builder: (context, child) => Row(
+                      children: [
+                        Transform.scale(
+                          scale: _scaleAnim.value,
+                          child: CustomPaint(
+                            size: const Size(40, 40),
+                            painter: MoodFacePainter(
+                              widget.entry.mood,
+                              animT: _exprAnim.value,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        child!,
+                      ],
+                    ),
+                  ),
                 ),
               ),
             ),
